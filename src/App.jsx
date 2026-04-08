@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import './App.css';
 
-const socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:3000');
+const socket = io('http://localhost:3000');
 const HORSE_COLORS = ['#ff4757','#3742fa','#2ed573','#ffa502','#8e44ad','#ff6348','#1e90ff','#2f3542','#ff6b81','#7bed9f'];
 
 function App() {
@@ -25,6 +25,9 @@ function App() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [editNick, setEditNick] = useState('');
   const [editPic, setEditPic] = useState('');
+  const [chatFrozen, setChatFrozen] = useState(false);
+  const [bettingTimer, setBettingTimer] = useState('40');
+  const [racingTimer, setRacingTimer] = useState('60');
   const chatEndRef = useRef(null);
   const alertTimerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -85,6 +88,7 @@ function App() {
     socket.on('fateEvent', (d) => showAlertTimed({ type: 'fate', ...d }, 12000));
     socket.on('gameEnded', (d) => { setFinalRanking(d.ranking); setEventAlert(null); });
     socket.on('gameReset', () => { setFinalRanking(null); setEventAlert(null); setGameState('lobby'); });
+    socket.on('chatFreezeUpdate', (frozen) => setChatFrozen(frozen));
 
     const savedRaw = localStorage.getItem('lucky_user');
     if (savedRaw) {
@@ -103,7 +107,7 @@ function App() {
     return () => {
       ['joinSuccess','profileUpdated','updateUsers','gameStarted','timerUpdate',
        'racingBetCounts','betConfirmed','receiveMessage','bettingResults','racingResults',
-       'resurrectionEvent','fateEvent','gameEnded','gameReset'].forEach(e => socket.off(e));
+       'resurrectionEvent','fateEvent','gameEnded','gameReset','chatFreezeUpdate'].forEach(e => socket.off(e));
     };
   }, [showAlertTimed]);
 
@@ -361,11 +365,20 @@ function App() {
           {/* 스탭 패널 */}
           {myInfo.isStaff && (
             <div className="staff-panel">
-              <button onClick={() => socket.emit('startBettingGame')} className="s-btn s1">배팅시작</button>
-              <button onClick={() => socket.emit('startHorseRacing', Array(10).fill(0).map((_,i)=>`경주마${i+1}`))} className="s-btn s2">경마시작</button>
-              <button onClick={() => socket.emit('resurrectBeggars')} className="s-btn s3">거지회생</button>
-              <button onClick={() => socket.emit('triggerFateEvent')} className="s-btn s4">운명뽑기</button>
-              <button onClick={() => socket.emit('endGame')} className="s-btn s-end">최종발표</button>
+              <div className="staff-row">
+                <div className="staff-timer-group">
+                  <input type="number" value={bettingTimer} onChange={e => setBettingTimer(e.target.value)} className="staff-timer-input" min="10" max="300" />
+                  <button onClick={() => socket.emit('startBettingGame', { timer: parseInt(bettingTimer) || 40 })} className="s-btn s1">배팅시작</button>
+                </div>
+                <div className="staff-timer-group">
+                  <input type="number" value={racingTimer} onChange={e => setRacingTimer(e.target.value)} className="staff-timer-input" min="10" max="300" />
+                  <button onClick={() => socket.emit('startHorseRacing', { timer: parseInt(racingTimer) || 60 })} className="s-btn s2">경마시작</button>
+                </div>
+                <button onClick={() => socket.emit('resurrectBeggars')} className="s-btn s3">거지회생</button>
+                <button onClick={() => socket.emit('triggerFateEvent')} className="s-btn s4">운명뽑기</button>
+                <button onClick={() => socket.emit('toggleChatFreeze')} className={`s-btn ${chatFrozen ? 's-freeze-on' : 's-freeze'}`}>{chatFrozen ? '🔓채팅녹이기' : '🔒채팅얼리기'}</button>
+                <button onClick={() => socket.emit('endGame')} className="s-btn s-end">최종발표</button>
+              </div>
             </div>
           )}
 
@@ -447,8 +460,14 @@ function App() {
             <div ref={chatEndRef} />
           </div>
           <form className="chat-form" onSubmit={handleChatSubmit}>
-            <input name="m" placeholder="채팅 입력..." autoComplete="off" />
-            <button type="submit">전송</button>
+            {chatFrozen && !myInfo?.isStaff ? (
+              <div className="chat-frozen-msg">🧊 채팅창이 얼었어요</div>
+            ) : (
+              <>
+                <input name="m" placeholder={chatFrozen ? "채팅 얼림 중 (스탭만 가능)" : "채팅 입력..."} autoComplete="off" />
+                <button type="submit">전송</button>
+              </>
+            )}
           </form>
         </aside>
       </div>
