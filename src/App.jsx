@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import './App.css';
 
-const socket = io('http://localhost:3000');
+const socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:3000');
 const HORSE_COLORS = ['#ff4757','#3742fa','#2ed573','#ffa502','#8e44ad','#ff6348','#1e90ff','#2f3542','#ff6b81','#7bed9f'];
 
 function App() {
